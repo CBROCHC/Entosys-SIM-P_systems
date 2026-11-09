@@ -1,0 +1,42 @@
+# PLANTILLA 2 - Población de 10 células iguales que compiten por unos promotores limitados.
+# Mismas reglas que la plantilla 1; solo cambia la población y los promotores del medio.
+# (con P: 6 solo pueden ocurrir 3 internalizaciones: quién invade a quién lo decide el azar)
+system:
+  name: Poblacion_10
+  max_steps: 25
+  seed: 5
+  variability: false
+  types:
+    Cell:
+      objects: {a: 3, b: 2}
+      children: [Vacuole]
+      rules:
+        invade:
+          partner: Cell
+          condition:
+            from_step: 3
+            free: true
+            needs: [{at: parent, object: Q, min: 2}]
+            empty: [self.child:Vacuole, partner.child:Vacuole]
+          input: [{object: a, number: 1}, {object: P, number: 2, at: parent}]
+          engulf: {cell: self, into: partner.child:Vacuole}
+          output: [{object: L, number: 2, at: partner.child:Vacuole}]
+          record: {event: internalization, cell: self, other: partner}
+    Vacuole:
+      rules:
+        kill_inner:
+          input: [{object: L, number: 2}]
+          dissolve: [child:Cell, child:Cell.child:Vacuole]
+          record: {event: death_internal, cell: child:Cell, other: parent}
+        kill_host:
+          input: [{object: L, number: 2}]
+          dissolve: [parent, self]
+          record: {event: death_host, cell: parent, other: child:Cell}
+        escape:
+          input: [{object: L, number: 2}]
+          engulf: {cell: child:Cell, into: parent.parent}
+          record: {event: escape, cell: child:Cell, other: parent}
+  membranes:
+    - {name: SK, objects: {P: 6, Q: 3}}
+  population:
+    - {type: Cell, count: 10, parent: SK, prefix: C}

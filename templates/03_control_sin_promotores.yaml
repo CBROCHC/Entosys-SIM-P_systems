@@ -1,0 +1,21 @@
+# PLANTILLA 3 - Control negativo: no hay promotores (P: 0), la entosis nunca empieza.
+# Debe detenerse sin ningún suceso.
+system:
+  name: Control_sin_promotores
+  max_steps: 10
+  types:
+    Cell:
+      objects: {a: 3}
+      children: [Vacuole]
+      rules:
+        invade:
+          partner: Cell
+          condition: {from_step: 2, free: true, empty: [self.child:Vacuole, partner.child:Vacuole]}
+          input: [{object: P, number: 2, at: parent}]
+          engulf: {cell: self, into: partner.child:Vacuole}
+          record: {event: internalization, cell: self, other: partner}
+    Vacuole: {}
+  membranes:
+    - {name: SK, objects: {Q: 3}}
+  population:
+    - {type: Cell, count: 4, parent: SK, prefix: C}

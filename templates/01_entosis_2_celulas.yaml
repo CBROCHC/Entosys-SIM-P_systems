@@ -1,0 +1,55 @@
+# PLANTILLA 1 - Entosis genérica con 2 células IGUALES (C1 y C2).
+# No hay tipos A/B: cualquiera puede invadir a la otra. Solo hay UNA regla de invasión.
+#
+# Objetos (letras inventadas):
+#   a, b = objetos propios de cada célula     P, Q = promotores del medio (P se gasta, Q solo da permiso)
+#   L    = objeto que llega a la vacuola tras la internalización (decide el destino)
+# Referencias: self = esta membrana · parent = su padre · partner = el compañero elegido
+#              child:Vacuole = su vacuola · partner.child:Vacuole = la vacuola del compañero
+# Nota YAML: no uses y, n, yes, no, on, off como nombre de objeto sin comillas.
+system:
+  name: Entosis_2_celulas
+  max_steps: 20
+  seed: 1                 # quítalo (o pon null) para que cada ejecución sea distinta
+  variability: false      # true = aplica los rangos de 'variability' de la población
+
+  types:
+    Cell:
+      objects: {a: 3, b: 2}
+      children: [Vacuole]             # cada célula nace con su vacuola
+      rules:
+        invade:                       # esta célula (self) invade a otra (partner)
+          partner: Cell               # el compañero es un hermano de tipo Cell, elegido al azar
+          condition:
+            from_step: 3              # "llegado un momento"
+            free: true                # self debe ser una célula libre (hija directa del medio)
+            needs: [{at: parent, object: Q, min: 2}]                     # permiso del medio
+            empty: [self.child:Vacuole, partner.child:Vacuole]           # sin anidar: ambas vacuolas vacías
+          input:
+            - {object: a, number: 1}                                     # gasta un objeto propio...
+            - {object: P, number: 2, at: parent}                         # ...y promotores del medio
+          engulf: {cell: self, into: partner.child:Vacuole}              # self entra en la vacuola del compañero
+          output: [{object: L, number: 2, at: partner.child:Vacuole}]    # arranca la maduración de la vacuola
+          record: {event: internalization, cell: self, other: partner}
+
+    Vacuole:                          # tres destinos que compiten por los mismos 2 L
+      rules:
+        kill_inner:                   # muere la célula interna: ella y su vacuola se disuelven
+          input: [{object: L, number: 2}]
+          dissolve: [child:Cell, child:Cell.child:Vacuole]
+          record: {event: death_internal, cell: child:Cell, other: parent}
+        kill_host:                    # muere el huésped: él y esta vacuola se disuelven
+          input: [{object: L, number: 2}]
+          dissolve: [parent, self]    # (la célula interna, si la hay, queda libre en el medio)
+          record: {event: death_host, cell: parent, other: child:Cell}
+        escape:                       # la célula interna sale de la vacuola al medio
+          input: [{object: L, number: 2}]
+          engulf: {cell: child:Cell, into: parent.parent}
+          record: {event: escape, cell: child:Cell, other: parent}
+
+  membranes:
+    - name: SK                        # el medio (única membrana sin 'parent')
+      objects: {P: 2, Q: 3}
+
+  population:
+    - {type: Cell, count: 2, parent: SK, prefix: C}      # C1 y C2 (con vacuolas C1_Vacuole y C2_Vacuole)

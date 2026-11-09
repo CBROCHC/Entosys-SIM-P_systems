@@ -1,0 +1,47 @@
+# PLANTILLA 6 - Variabilidad inicial ACTIVADA (variability: true).
+# Cada célula recibe un nº aleatorio de 'a' entre 0 y 3 (bloque 'variability' de la población).
+# Como invadir gasta un 'a', las células con a=0 no pueden invadir (sí pueden ser invadidas).
+# Con variability: false el bloque se ignora y todas empiezan con a: 3 (valor del tipo).
+system:
+  name: Variabilidad
+  max_steps: 25
+  seed: 11
+  variability: true
+  types:
+    Cell:
+      objects: {a: 3, b: 2}
+      children: [Vacuole]
+      rules:
+        invade:
+          partner: Cell
+          condition:
+            from_step: 3
+            free: true
+            needs: [{at: parent, object: Q, min: 2}]
+            empty: [self.child:Vacuole, partner.child:Vacuole]
+          input: [{object: a, number: 1}, {object: P, number: 2, at: parent}]
+          engulf: {cell: self, into: partner.child:Vacuole}
+          output: [{object: L, number: 2, at: partner.child:Vacuole}]
+          record: {event: internalization, cell: self, other: partner}
+    Vacuole:
+      rules:
+        kill_inner:
+          input: [{object: L, number: 2}]
+          dissolve: [child:Cell, child:Cell.child:Vacuole]
+          record: {event: death_internal, cell: child:Cell, other: parent}
+        kill_host:
+          input: [{object: L, number: 2}]
+          dissolve: [parent, self]
+          record: {event: death_host, cell: parent, other: child:Cell}
+        escape:
+          input: [{object: L, number: 2}]
+          engulf: {cell: child:Cell, into: parent.parent}
+          record: {event: escape, cell: child:Cell, other: parent}
+  membranes:
+    - {name: SK, objects: {P: 8, Q: 3}}
+  population:
+    - type: Cell
+      count: 12
+      parent: SK
+      prefix: C
+      variability: {a: [0, 3]}

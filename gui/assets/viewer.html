@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Visor de membranas</title>
+<style>/*__CSS__*/</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <div class="group">
+      <button id="btnFirst" title="Ir a t=0 (Inicio)">⏮</button>
+      <button id="btnPrev" title="Paso anterior (←)">◀</button>
+      <button id="btnPlay" title="Reproducir / pausar (espacio)">▶</button>
+      <button id="btnNext" title="Paso siguiente (→)">▶|</button>
+      <button id="btnLast" title="Ir al final (Fin)">⏭</button>
+      <input id="slider" type="range" min="0" max="0" value="0">
+      <span id="tLabel"></span>
+      <select id="speed" title="Velocidad">
+        <option value="1800">0.5×</option><option value="900" selected>1×</option>
+        <option value="450">2×</option><option value="200">4×</option>
+      </select>
+    </div>
+    <div class="group">
+      <label>Color
+        <select id="colorBy"></select>
+      </label>
+      <input id="search" list="names" placeholder="Buscar membrana… (Enter)">
+      <datalist id="names"></datalist>
+      <button id="btnFit" title="Ver todo el espacio">Ajustar vista</button>
+    </div>
+    <div id="outcome"></div>
+  </div>
+  <div id="main">
+    <div id="stage">
+      <svg id="canvas"></svg>
+      <div id="hud"></div>
+      <div id="legend"></div>
+    </div>
+    <aside id="panel"></aside>
+  </div>
+</div>
+<script>/*__D3__*/</script>
+<script>const RECORDING = /*__DATA__*/null;</script>
+<script>/*__JS__*/</script>
+</body>
+</html>

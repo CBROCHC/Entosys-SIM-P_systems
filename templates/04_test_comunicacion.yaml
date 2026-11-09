@@ -1,0 +1,24 @@
+# PLANTILLA 4 - Test del motor SIN tipos ni engulf: membranas sueltas, máximo paralelismo y
+# envío de objetos entre membranas (así se escribía el YAML antes de existir los tipos).
+#   A: con a=4 la regla ra se aplica 2 veces en el mismo paso (consume 2 a, produce b + c en SK)
+#   SK: cada c que llega se transforma en d y se envía a B
+system:
+  name: Test_comunicacion
+  max_steps: 10
+  membranes:
+    - name: SK
+      rules:
+        rs:
+          input: [{object: c}]
+          output: [{object: d, at: B}]       # 'at' puede ser un nombre concreto de membrana
+    - name: A
+      parent: SK
+      objects: {a: 4}
+      rules:
+        ra:
+          input: [{object: a, number: 2}]
+          output:
+            - {object: b}
+            - {object: c, at: SK}
+    - name: B
+      parent: SK
