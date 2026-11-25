@@ -9,11 +9,13 @@
 <div id="app">
   <div id="topbar">
     <div class="group">
-      <button id="btnFirst" title="Ir a t=0 (Inicio)">⏮</button>
+      <button id="btnFirst" title="Ir a t=0">⏮</button>
       <button id="btnPrev" title="Paso anterior (←)">◀</button>
       <button id="btnPlay" title="Reproducir / pausar (espacio)">▶</button>
       <button id="btnNext" title="Paso siguiente (→)">▶|</button>
-      <button id="btnLast" title="Ir al final (Fin)">⏭</button>
+      <button id="btnLast" title="Ir al final">⏭</button>
+      <button id="btnPrevEvt" title="Suceso anterior (internalización, muerte, escape…)">◆◀</button>
+      <button id="btnNextEvt" title="Suceso siguiente">▶◆</button>
       <input id="slider" type="range" min="0" max="0" value="0">
       <span id="tLabel"></span>
       <select id="speed" title="Velocidad">
@@ -22,15 +24,17 @@
       </select>
     </div>
     <div class="group">
-      <label>Color
-        <select id="colorBy"></select>
-      </label>
+      <label>Color <select id="colorBy"></select></label>
       <input id="search" list="names" placeholder="Buscar membrana… (Enter)">
       <datalist id="names"></datalist>
       <button id="btnFit" title="Ver todo el espacio">Ajustar vista</button>
+      <button id="btnSvg" title="Guardar la vista actual como SVG">SVG</button>
+      <button id="btnPng" title="Guardar la vista actual como PNG">PNG</button>
+      <button id="btnVideo" title="Grabar la evolución completa como vídeo WebM">Vídeo</button>
     </div>
     <div id="outcome"></div>
   </div>
+  <div id="timeline" title="Actividad por paso (barras) y sucesos (puntos de color). Clic para saltar."></div>
   <div id="main">
     <div id="stage">
       <svg id="canvas"></svg>

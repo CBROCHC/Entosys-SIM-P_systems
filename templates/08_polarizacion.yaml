@@ -1,0 +1,53 @@
+# PLANTILLA 8 - Polarización: cada membrana tiene una carga con dos estados, 0 o 1.
+# (El significado biológico de 0 y 1 lo decide el experto; aquí son solo dos estados.)
+# Cada célula recibe una carga inicial aleatoria (variability: true + `charge: [0, 1]`).
+#   · Solo puede invadir una célula con carga 1                         -> condition.charge (condición dura)
+#   · El huésped se elige con ruleta: carga 0 pesa 4, carga 1 pesa 1   -> partner.charge_weight (peso)
+#   · Al internalizarse, el invasor pasa a carga 0 y el huésped a 1    -> set_charge
+# En el visor: "Color → Carga", y las células con carga 1 llevan el borde naranja.
+system:
+  name: Polarizacion
+  max_steps: 20
+  seed: 2
+  variability: true
+  types:
+    Cell:
+      objects: {a: 3}
+      charge: 0
+      children: [Vacuole]
+      rules:
+        invade:
+          partner: {type: Cell, charge_weight: {0: 4, 1: 1}}
+          condition:
+            from_step: 3
+            free: true
+            charge: [{at: self, is: 1}]
+            needs: [{at: parent, object: Q, min: 2}]
+            empty: [self.child:Vacuole, partner.child:Vacuole]
+          input: [{object: a}, {object: P, number: 2, at: parent}]
+          engulf: {cell: self, into: partner.child:Vacuole}
+          output: [{object: L, number: 2, at: partner.child:Vacuole}]
+          set_charge: [{at: self, to: 0}, {at: partner, to: 1}]
+          record: {event: internalization, cell: self, other: partner}
+    Vacuole:
+      rules:
+        kill_inner:
+          input: [{object: L, number: 2}]
+          dissolve: [child:Cell, child:Cell.child:Vacuole]
+          record: {event: death_internal, cell: child:Cell, other: parent}
+        kill_host:
+          input: [{object: L, number: 2}]
+          dissolve: [parent, self]
+          record: {event: death_host, cell: parent, other: child:Cell}
+        escape:
+          input: [{object: L, number: 2}]
+          engulf: {cell: child:Cell, into: parent.parent}
+          record: {event: escape, cell: child:Cell, other: parent}
+  membranes:
+    - {name: SK, objects: {P: 8, Q: 3}}
+  population:
+    - type: Cell
+      count: 16
+      parent: SK
+      prefix: C
+      variability: {charge: [0, 1]}

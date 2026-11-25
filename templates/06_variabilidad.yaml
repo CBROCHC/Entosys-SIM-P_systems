@@ -1,5 +1,6 @@
 # PLANTILLA 6 - Variabilidad inicial ACTIVADA (variability: true).
-# Cada célula recibe un nº aleatorio de 'a' entre 0 y 3 (bloque 'variability' de la población).
+# Cada célula recibe un nº aleatorio de 'a' entre 0 y 3 (bloque 'variability' de la población;
+# también se puede variar la carga inicial con `charge: [0, 1]`, ver plantilla 08).
 # Como invadir gasta un 'a', las células con a=0 no pueden invadir (sí pueden ser invadidas).
 # Con variability: false el bloque se ignora y todas empiezan con a: 3 (valor del tipo).
 system:
@@ -44,4 +45,4 @@ system:
       count: 12
       parent: SK
       prefix: C
-      variability: {a: [0, 3]}
+      variability: {objects: {a: [0, 3]}}

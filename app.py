@@ -1,8 +1,8 @@
-"""app.py - Interfaz Streamlit (v2).   Ejecutar con:  streamlit run app.py
+"""app.py - Interfaz Streamlit (v3).   Ejecutar con:  python -m streamlit run app.py
 
-Flujo:  YAML -> parse_text -> Simulator -> Recorder (graba todos los pasos) -> grabación (dict)
-La grabación alimenta TODAS las pestañas: el visor D3 y las tablas de análisis (gui/analysis.py).
-Para cambiar el visor o añadir análisis no hay que tocar el motor: solo gui/.
+Flujo:  YAML (+ parámetros + semilla) -> parse_text -> Simulator -> Recorder (graba todos los pasos)
+        -> grabación (dict) -> TODAS las pestañas: visor D3, tablas, mapa de reglas, explicaciones.
+Para cambiar el visor o añadir análisis no hace falta tocar el motor: solo gui/.
 """
 import json
 from pathlib import Path
@@ -11,9 +11,13 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from gui import analysis
+from gui.explain import explain_at
 from gui.recorder import Recorder
 from gui.viewer import build_html
-from psystem import Simulator, parse_text
+from psystem import Simulator, parse_text, read_params
+
+TEMPLATES = sorted((Path(__file__).parent / "templates").glob("*.yaml"))
+
 
 def show_html(html: str, height: int) -> None:
     """Incrusta una página HTML (st.iframe en Streamlit recientes, components.html en antiguos)."""
@@ -23,16 +27,14 @@ def show_html(html: str, height: int) -> None:
         components.html(html, height=height, scrolling=False)
 
 
-TEMPLATES = sorted((Path(__file__).parent / "templates").glob("*.yaml"))
-
-st.set_page_config(page_title="Simulador de entosis (alfa 2)", layout="wide")
-st.title("Simulador de entosis con P-sistemas (alfa 2)")
+st.set_page_config(page_title="Simulador de entosis (alfa 3)", layout="wide")
+st.title("Simulador de entosis con P-sistemas (alfa 3)")
 
 
 # --------------------------------------------------- barra lateral ---
-def simulate(text: str) -> None:
+def simulate(text: str, params: dict, seed: int | None) -> None:
     try:
-        rec = Recorder(Simulator(parse_text(text)))
+        rec = Recorder(Simulator(parse_text(text, params, seed)), yaml_text=text, params=params)
         rec.run()                                       # simula hasta el final y graba todos los pasos
         st.session_state.recording = rec.to_dict()
     except Exception as e:                              # error de YAML -> mensaje, sin romper la app
@@ -41,10 +43,27 @@ def simulate(text: str) -> None:
 
 choice = st.sidebar.selectbox("Plantilla", TEMPLATES, format_func=lambda p: p.stem)
 yaml_text = st.sidebar.text_area("YAML (editable)", choice.read_text(encoding="utf-8"),
-                                 height=380, key=f"yaml_{choice.name}")
+                                 height=340, key=f"yaml_{choice.name}")
+
+params = {}                                             # parámetros del YAML -> un deslizador cada uno
+try:
+    declared = read_params(yaml_text)
+except Exception as e:
+    declared = {}
+    st.sidebar.error(f"No se pueden leer los parámetros: {e}")
+if declared:
+    with st.sidebar.expander("Parámetros del modelo", expanded=True):
+        for name, p in declared.items():
+            nums = [p["value"], p["min"], p["max"], p["step"]]
+            cast = float if any(isinstance(x, float) for x in nums) else int
+            params[name] = st.slider(p["label"], cast(p["min"]), cast(p["max"]), cast(p["value"]),
+                                     cast(p["step"]), key=f"param_{choice.name}_{name}")
+
+seed_text = st.sidebar.text_input("Semilla (vacío = la del YAML, o aleatoria)", "")
+seed = int(seed_text) if seed_text.strip().lstrip("-").isdigit() else None
+
 if st.sidebar.button("Simular", type="primary") or "recording" not in st.session_state:
-    simulate(yaml_text)
-st.sidebar.caption("Si el YAML no tiene `seed`, cada simulación da un resultado distinto.")
+    simulate(yaml_text, params, seed)
 
 upload = st.sidebar.file_uploader("…o abrir una grabación guardada (.json)", type="json")
 if upload is not None and st.session_state.get("last_upload") != (upload.name, upload.size):
@@ -61,20 +80,23 @@ if "recording" not in st.session_state:
 rec = st.session_state.recording
 T = len(rec["frames"]) - 1
 
-c1, c2, c3, c4 = st.columns(4)
+c1, c2, c3, c4, c5 = st.columns(5)
 c1.metric("Sistema", rec["name"])
 c2.metric("Pasos grabados", T)
 c3.metric("Membranas al inicio / final", f"{len(rec['frames'][0]['parents'])} / {len(rec['frames'][-1]['parents'])}")
-c4.metric("Estado", rec["status"])
+c4.metric("Semilla", rec["seed"])
+c5.metric("Estado", rec["status"])
 
-tab_view, tab_mem, tab_ev, tab_res, tab_save = st.tabs(["Visor", "Membranas", "Eventos", "Resultados", "Grabación"])
+tab_view, tab_mem, tab_ev, tab_res, tab_map, tab_exp, tab_save = st.tabs(
+    ["Visor", "Membranas", "Eventos", "Resultados", "Mapa de reglas", "Explicar", "Grabación"])
 
 
 # ----------------------------------------------------------- Visor ---
 with tab_view:
-    st.caption("Rueda = zoom · arrastrar el fondo = desplazar · arrastrar una célula = moverla · "
-               "clic = ver sus objetos, reglas y evolución · ▶ reproduce de t=0 al final.")
-    show_html(build_html(rec), height=800)
+    st.caption("Rueda = zoom · arrastrar el fondo = desplazar · arrastrar una célula = moverla · clic = estudiar "
+               "sus reglas aplicadas, lo que consumieron/produjeron y las condiciones cumplidas · ▶ reproduce de t=0 al final · "
+               "SVG / PNG / Vídeo guardan lo que ves.")
+    show_html(build_html(rec), height=840)
 
 
 # ------------------------------------------------------- Membranas ---
@@ -129,8 +151,8 @@ with tab_ev:
             view = view[view.regla.isin(rules)]
         if mtext:
             view = view[view.membrana.str.contains(mtext, case=False)]
-        st.write(f"**Reglas aplicadas** ({len(view)} filas)")
-        st.dataframe(view, hide_index=True, height=300)
+        st.write(f"**Reglas aplicadas** ({len(view)} filas) — qué consumió y produjo cada una, con qué compañero y qué acciones hizo")
+        st.dataframe(view, hide_index=True, height=320)
 
     st.write("**Cambios de estructura** (internalizaciones, escapes, disoluciones)")
     moves = analysis.moves_table(rec)
@@ -159,14 +181,75 @@ with tab_res:
         st.dataframe(analysis.fates_by_cell(rec), hide_index=True, height=260)
 
 
+# ----------------------------------------------------- Mapa de reglas ---
+with tab_map:
+    st.write("Mapa de dependencias entre **objetos** (elipses, agrupados por tipo de membrana) y **reglas** (cuadrados). "
+             "Flecha continua: se consume (objeto → regla) o se produce (regla → objeto, verde). Discontinua: umbral que la regla "
+             "exige sin gastarlo. Debajo, avisos para revisar el modelo.")
+    owners = sorted({d["owner"] for d in rec["rule_defs"].values()})
+    shown = st.multiselect("Mostrar reglas de", owners, default=owners)
+    if shown:
+        st.graphviz_chart(analysis.dependency_dot(rec, shown))
+    warn = analysis.rule_warnings(rec)
+    st.write(f"**Avisos** ({len(warn)})")
+    st.dataframe(warn, hide_index=True) if len(warn) else st.success("Sin avisos.")
+
+
+# ---------------------------------------------------------- Explicar ---
+with tab_exp:
+    st.write("**¿Por qué se aplicó (o no) una regla en un paso?** Se reconstruye el estado al *inicio* del paso desde la grabación "
+             "y se evalúan las condiciones con el mismo código del motor. Ojo: dentro de un paso otras reglas pueden haber "
+             "gastado objetos o movido membranas antes, así que para una regla que sí se aplicó, la lista exacta de condiciones "
+             "cumplidas en el momento de aplicarla está en el visor (tarjeta verde de la membrana).")
+    if not rec.get("yaml"):
+        st.info("Esta grabación no incluye el YAML: no se puede reconstruir el estado.")
+    elif T < 1:
+        st.info("No hay pasos que explicar.")
+    else:
+        x1, x2, x3 = st.columns(3)
+        step = x1.slider("Paso a explicar", 1, T, min(3, T)) if T > 1 else 1
+        frame0 = rec["frames"][step - 1]
+        mem = x2.selectbox("Membrana (existente al inicio del paso)", sorted(frame0["parents"]))
+        rule_ids = rec["membranes"][mem]["rules"]
+        rule_names = [rec["rule_defs"][r]["name"] for r in rule_ids]
+        rule = x3.selectbox("Regla", rule_names) if rule_names else None
+        if rule is None:
+            st.info("Esta membrana no tiene reglas.")
+        else:
+            out = explain_at(rec, step, mem, rule)
+            if out["applied_times"]:
+                st.success(f"En el paso {step} esta regla se aplicó {out['applied_times']} vez/veces en {mem}.")
+            else:
+                st.warning(f"En el paso {step} esta regla NO se aplicó en {mem}.")
+            st.caption(f"Peso (ruleta): {out['weight']} · retardo: {out['delay']}")
+            for label, checks in out["scenarios"]:
+                if label:
+                    st.write(f"**{label}**")
+                for ok, txt in checks:
+                    st.write(("✅ " if ok else "❌ ") + txt)
+                if checks and all(ok for ok, _ in checks):
+                    st.caption("→ con este escenario la regla sería aplicable.")
+            if out["options"]:
+                st.write("**Reglas aplicables al inicio del paso en esta membrana (compiten en la ruleta):** "
+                         + ", ".join(f"{n} (peso {w})" for n, w in out["options"]))
+            else:
+                st.write("Ninguna regla de esta membrana era aplicable al inicio del paso.")
+
+
 # -------------------------------------------------------- Grabación ---
 with tab_save:
-    st.write("La grabación contiene, para cada paso desde t=0, la estructura de membranas, "
-             "sus objetos y las reglas aplicadas. Con ella se puede volver a ver la evolución completa "
-             "sin volver a simular.")
+    st.write("La grabación es **autocontenida**: guarda, para cada paso desde t=0, la estructura, los objetos, las cargas, los "
+             "productos en curso y las reglas aplicadas con todo su detalle; además el YAML, los parámetros y la semilla, "
+             "así que cualquier resultado se puede reproducir.")
     s1, s2 = st.columns(2)
     s1.download_button("⬇ Grabación (.json) — reabrir en esta app", json.dumps(rec, ensure_ascii=False),
                        file_name=f"{rec['name']}.json", mime="application/json")
     s2.download_button("⬇ Visor independiente (.html) — se abre en cualquier navegador, sin Python",
                        build_html(rec), file_name=f"{rec['name']}_visor.html", mime="text/html")
-    st.caption(f"Estado de la simulación: {rec['status']}")
+    st.caption(f"Estado de la simulación: {rec['status']} · semilla {rec['seed']} · parámetros {rec.get('params') or '—'}")
+    if rec.get("yaml"):
+        if st.button("Re-simular con el YAML, los parámetros y la semilla de esta grabación"):
+            simulate(rec["yaml"], rec.get("params") or {}, rec["seed"])
+            st.rerun()
+        with st.expander("YAML de esta grabación"):
+            st.code(rec["yaml"], language="yaml")

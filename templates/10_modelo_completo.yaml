@@ -1,0 +1,84 @@
+# PLANTILLA 10 - Modelo completo: objetos y retardos (07) + polarización (08) + vecindad en rejilla (09)
+# + PARÁMETROS con deslizador en la interfaz. Los ${...} se sustituyen por el valor del parámetro.
+# Pensada para experimentar: p. ej. bajar 'rock1' simula una inhibición parcial de ROCK1.
+params:
+  promotores: {value: 20, min: 0, max: 60, label: "Promotores P del medio"}
+  rock1:      {value: 3, min: 0, max: 6, label: "Contractilidad inicial R (ROCK1)"}
+  peso_escape: {value: 3, min: 0, max: 10, step: 0.5, label: "Peso de la regla escape (ruleta)"}
+system:
+  name: Modelo_completo
+  max_steps: 40
+  seed: 9
+  variability: true
+  neighborhood:
+    type: Cell
+    parent: SK
+    grid: {cols: 6, diagonals: true}
+  types:
+    Cell:
+      objects: {a: 4, R: ${rock1}}
+      children: [Vacuole]
+      rules:
+        synthesize_a:
+          delay: 2
+          condition: {needs: [{at: self, object: a, max: 3}]}
+          output: [{object: a}]
+        make_R:
+          weight: 2
+          delay: 1
+          condition: {needs: [{at: self, object: R, max: 3}]}
+          input: [{object: a}]
+          output: [{object: R}]
+        decay_R:
+          weight: 0.3
+          condition: {needs: [{at: self, object: R, min: 3}]}
+          input: [{object: R}]
+        invade:
+          weight: 3
+          partner: {type: Cell, via: neighbors, charge_weight: {0: 3, 1: 1}}
+          condition:
+            from_step: 3
+            free: true
+            charge: [{at: self, is: 1}]
+            needs: [{at: parent, object: Q, min: 2}]
+            empty: [self.child:Vacuole, partner.child:Vacuole]
+          input: [{object: R, number: 2}, {object: P, number: 2, at: parent}]
+          engulf: {cell: self, into: partner.child:Vacuole}
+          output: [{object: M, number: 4, at: partner.child:Vacuole}]
+          set_charge: [{at: self, to: 0}]
+          record: {event: internalization, cell: self, other: partner}
+    Vacuole:
+      rules:
+        acidify:
+          weight: 3
+          delay: 1
+          input: [{object: M}]
+          output: [{object: A}]
+        engage_lysosome:
+          weight: 3
+          delay: 1
+          input: [{object: A, number: 2}]
+          output: [{object: L}]
+        kill_inner:
+          weight: 4
+          input: [{object: L, number: 2}]
+          dissolve: [child:Cell, child:Cell.child:Vacuole]
+          record: {event: death_internal, cell: child:Cell, other: parent}
+        kill_host:
+          weight: 1
+          input: [{object: L, number: 2}]
+          dissolve: [parent, self]
+          record: {event: death_host, cell: parent, other: child:Cell}
+        escape:
+          weight: ${peso_escape}
+          input: [{object: L, number: 2}, {object: R, number: 2, at: child:Cell}]
+          engulf: {cell: child:Cell, into: parent.parent}
+          record: {event: escape, cell: child:Cell, other: parent}
+  membranes:
+    - {name: SK, objects: {P: ${promotores}, Q: 3}}
+  population:
+    - type: Cell
+      count: 36
+      parent: SK
+      prefix: C
+      variability: {charge: [0, 1]}

@@ -1,0 +1,85 @@
+# PLANTILLA 7 - Objetos y reglas "por dentro" de la célula: síntesis, transformación, degradación,
+# retardos (delay) y ruleta (weight). Los objetos son LETRAS INVENTADAS (el experto aún no ha
+# definido qué componentes interactúan): sustitúyelas cuando se sepa.
+#
+#   a = energía/recurso interno        R = contractilidad (nivel de ROCK1, graduado)
+#   P, Q = promotores del medio (P se gasta, Q da permiso)
+#   M = señal que llega a la vacuola al internalizarse -> A = acidificación -> L = lisosomas
+#
+# CÉLULA (citoplasma):   ∅ ─(síntesis, 2 pasos)→ a        a ─(1 paso)→ R        R → ∅ (degradación)
+#                        invadir: gasta 2 R propios + 2 P del medio, entra en la vacuola de otra
+# VACUOLA: M → A → L (maduración con retardos); luego compiten, con la ruleta, 3 destinos:
+#          muere la interna (peso 4), muere el huésped (peso 1) o escapa (peso 3; necesita 2 R de la interna)
+# delay: n  = los productos llegan n pasos más tarde de lo normal (los objetos se gastan ya).
+# weight: x = peso de la regla en la ruleta entre las reglas aplicables de la misma membrana.
+system:
+  name: Objetos_y_retardos
+  max_steps: 30
+  seed: 4
+  types:
+    Cell:
+      objects: {a: 4, R: 2}
+      children: [Vacuole]
+      rules:
+        synthesize_a:                       # regla de síntesis: sin input, 1 vez por paso como máximo
+          weight: 1
+          delay: 2
+          condition: {needs: [{at: self, object: a, max: 3}]}   # solo si a ≤ 3 (si no, no hace falta)
+          output: [{object: a}]
+        make_R:                             # transformación: a → R
+          weight: 2
+          delay: 1
+          condition: {needs: [{at: self, object: R, max: 3}]}
+          input: [{object: a}]
+          output: [{object: R}]
+        decay_R:                            # degradación: solo decae el exceso (mientras R ≥ 3)
+          weight: 0.3
+          condition: {needs: [{at: self, object: R, min: 3}]}
+          input: [{object: R}]
+        invade:
+          weight: 3
+          partner: Cell
+          condition:
+            from_step: 3
+            free: true
+            needs: [{at: parent, object: Q, min: 2}]
+            empty: [self.child:Vacuole, partner.child:Vacuole]
+          input:
+            - {object: R, number: 2}                      # gasta contractilidad propia
+            - {object: P, number: 2, at: parent}          # y promotores del medio
+          engulf: {cell: self, into: partner.child:Vacuole}
+          output: [{object: M, number: 4, at: partner.child:Vacuole}]
+          record: {event: internalization, cell: self, other: partner}
+    Vacuole:
+      rules:
+        acidify:                            # M -> A (1 paso)
+          weight: 3
+          delay: 1
+          input: [{object: M}]
+          output: [{object: A}]
+        engage_lysosome:                    # 2 A -> 1 L (1 paso)
+          weight: 3
+          delay: 1
+          input: [{object: A, number: 2}]
+          output: [{object: L}]
+        kill_inner:
+          weight: 4
+          input: [{object: L, number: 2}]
+          dissolve: [child:Cell, child:Cell.child:Vacuole]
+          record: {event: death_internal, cell: child:Cell, other: parent}
+        kill_host:
+          weight: 1
+          input: [{object: L, number: 2}]
+          dissolve: [parent, self]
+          record: {event: death_host, cell: parent, other: child:Cell}
+        escape:                             # solo si la célula interna conserva contractilidad (R ≥ 2)
+          weight: 3
+          input:
+            - {object: L, number: 2}
+            - {object: R, number: 2, at: child:Cell}     # gasta R de la célula de dentro
+          engulf: {cell: child:Cell, into: parent.parent}
+          record: {event: escape, cell: child:Cell, other: parent}
+  membranes:
+    - {name: SK, objects: {P: 8, Q: 3}}
+  population:
+    - {type: Cell, count: 12, parent: SK, prefix: C}

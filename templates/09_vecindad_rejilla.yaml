@@ -1,0 +1,50 @@
+# PLANTILLA 9 - Vecindad tipo tejido: 64 células en una rejilla 8×8; solo pueden invadir a una VECINA.
+#   neighborhood.grid: las células (en orden C1, C2...) rellenan la rejilla por filas;
+#       cada una es vecina de la de su derecha y de la de abajo (diagonals: true añade las diagonales).
+#   partner.via: neighbors  -> el huésped se elige solo entre las vecinas libres.
+# Contactos: una célula internalizada pierde sus contactos mientras esté dentro; una célula muerta los pierde
+# para siempre; una célula que escapa recupera los suyos que sigan libres y pasa a ser vecina de su ex-huésped.
+# En el visor las células se colocan en la rejilla y se dibujan los enlaces.
+system:
+  name: Vecindad_rejilla
+  max_steps: 25
+  seed: 6
+  neighborhood:
+    type: Cell
+    parent: SK
+    grid: {cols: 8, diagonals: false}
+    # links: [[C1, C10]]                  # enlaces explícitos extra (opcional)
+  types:
+    Cell:
+      objects: {a: 3, b: 2}
+      children: [Vacuole]
+      rules:
+        invade:
+          partner: {type: Cell, via: neighbors}
+          condition:
+            from_step: 3
+            free: true
+            needs: [{at: parent, object: Q, min: 2}]
+            empty: [self.child:Vacuole, partner.child:Vacuole]
+          input: [{object: a}, {object: P, number: 2, at: parent}]
+          engulf: {cell: self, into: partner.child:Vacuole}
+          output: [{object: L, number: 2, at: partner.child:Vacuole}]
+          record: {event: internalization, cell: self, other: partner}
+    Vacuole:
+      rules:
+        kill_inner:
+          input: [{object: L, number: 2}]
+          dissolve: [child:Cell, child:Cell.child:Vacuole]
+          record: {event: death_internal, cell: child:Cell, other: parent}
+        kill_host:
+          input: [{object: L, number: 2}]
+          dissolve: [parent, self]
+          record: {event: death_host, cell: parent, other: child:Cell}
+        escape:
+          input: [{object: L, number: 2}]
+          engulf: {cell: child:Cell, into: parent.parent}
+          record: {event: escape, cell: child:Cell, other: parent}
+  membranes:
+    - {name: SK, objects: {P: 24, Q: 3}}
+  population:
+    - {type: Cell, count: 64, parent: SK, prefix: C}
